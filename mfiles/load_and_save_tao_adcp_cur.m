@@ -272,7 +272,7 @@ filename = ['../../TaoTritonPirataRama/high_resolution/30m/cur' ...
     lower(latstr) lower(lonstr) '_30m.cdf'];
 if exist(filename,'file')
     yncur = 1;
-    disp('loading and interpolating raw 20 min current meter data from TaoTritonPirataRama...')
+    disp('loading and interpolating raw 30 min current meter data from TaoTritonPirataRama...')
     raw = loadnc(filename);
     if isfield(raw,'U')
         raw.u = raw.U;
@@ -393,18 +393,110 @@ if cur30.depth ~= 0
 end
 
 
+%% load in daily Current Meter data
+% some of the RAMA locations have daily current meter data that is not
+% saved at any high-resolution time scales
+
+
+gooddailycurrents = 1;
+
+filename = ['../../TaoTritonPirataRama/' mooringarray '/cur_xyzt_dy.cdf'];
+if exist(filename,'file')
+    dummy = loadnc(filename);
+else
+    gooddailycurrents = 0;
+    disp('WARNING: load_and_save_tao_adcp_cur could not find the')
+    disp(['daily ADCP file: ../../TaoTritonPirataRama/' mooringarray '/adcp_xyzt_dy.cdf'])
+    disp('No daily data will be used to fill gaps in the high resolution data.')        
+    disp(' ')
+end
+
+if gooddailycurrents
+    indlat = find(dummy.lat == lat);
+    indlon = find(dummy.lon == lon);
+
+    if isempty(indlat) | isempty(indlon)
+        gooddailycurrents = 0;
+        disp(['WARNING: load_and_save_tao_sadcp_cur cannot find the desired lat and lon'])
+        disp(['in the daily ../../TaoTritonPirataRama/' mooringarray '/adcp_xyzt_dy.cdf. '])
+        disp('No daily data will be used to fill gaps in the high resolution data')
+        disp(' ')
+    else
+        rawddy.time = dummy.time;
+        rawddy.depth = dummy.depth;
+        rawddy.lat = dummy.lat(indlat);
+        rawddy.lon = dummy.lon(indlon);
+        rawddy.u = squeeze(dummy.U(:,:,indlat,indlon))'/100;  % convert cm/s to m/s
+        rawddy.v = squeeze(dummy.V(:,:,indlat,indlon))'/100;  % convert cm/s to m/s
+
+        % interpolate to 10 minute time grid
+        rawdy.time = time;
+        rawdy.depth = rawddy.depth;
+        rawdy.lat = rawddy.lat;
+        rawdy.lon = rawddy.lon;
+        for ii = 1:length(rawdy.depth)
+            rawdy.u(ii,:) = interp1(rawddy.time,rawddy.u(ii,:),time);
+            rawdy.v(ii,:) = interp1(rawddy.time,rawddy.v(ii,:),time);
+        end
+    end
+end
+
+% fill holes in high-resolution data with daily data
+if gooddailycurrents
+
+    disp('filling holes in high-resolution current meter data with daily data...')
+
+    for ii = 1:length(cur.depth)
+        clear inddepth
+        inddepth = find(rawdy.depth == cur.depth(ii));
+        if ~isempty(inddepth)
+            clear nanmask
+            nanmask = isnan(cur.u(ii,:));
+            cur.u(ii,nanmask) = rawdy.u(inddepth,nanmask);
+            clear nanmask
+            nanmask = isnan(cur.v(ii,:));
+            cur.v(ii,nanmask) = rawdy.v(inddepth,nanmask);           
+        end    
+    end  
+    
+    for ii = 1:length(rawdy.depth)
+        clear indd depthorig uorig vorig
+        indd = find(cur.depth == rawdy.depth(ii));
+        if ~isempty(indd)
+            % this depth should have already been added to cur
+        else
+            depthorig = cur.depth;
+            uorig = cur.u;
+            vorig = cur.v;
+
+            indd = find(cur.depth < rawdy.depth(ii),1,'last');
+            if indd ~= length(cur.depth)
+                cur.depth = [depthorig(1:indd); rawdy.depth(ii); ...
+                    depthorig(indd+1:end)];
+                cur.u = [cur.u(1:indd,:); rawdy.u(ii,:); cur.u(indd+1:end,:)];
+                cur.v = [cur.v(1:indd,:); rawdy.v(ii,:); cur.v(indd+1:end,:)];
+            else
+                cur.depth = [depthorig(1:indd); rawdy.depth(ii)];
+                cur.u = [cur.u(1:indd,:); rawdy.u(ii,:)];
+                cur.v = [cur.v(1:indd,:); rawdy.v(ii,:)];
+            end
+        end
+    end
+end 
+
+
+
 
 %% load in additonal ADCP and current meter data from random files if they exist
 
 %%%%% parse in additional ADCP files %%%%%
 ynadditionalfiles = exist(['./adcp_info/adcp_info_at_' ...
-    latstrshort '_' lonstrnop '.m'],'file');
+    latstrshortnop '_' lonstrnop '.m'],'file');
 
 if ynadditionalfiles == 2
     % run the function that describes extra adcp and current meter files
-    run(['./adcp_info/adcp_info_at_' latstrshort '_' lonstrnop '.m']);
+    run(['./adcp_info/adcp_info_at_' latstrshortnop '_' lonstrnop '.m']);
 end
-    
 
 
 %% parse additional ADCP data (if it exists) into adcp structure 
@@ -585,6 +677,8 @@ adcpmo.readme = strvcat(adcp.readme,...
     ' ',...
     'daily data has been averaged by month. A month nust have data from at',...
     'least 10 days to be averaged');
+
+
 
 save([savedir 'adcp_' latstrshort '_' lonstr '_10min.mat'],'adcp','-v7.3')
 save([savedir 'adcp_' latstrshort '_' lonstr '_hourly.mat'],'adcphr')
