@@ -9,15 +9,15 @@
 % written by Sally Warner
 
 latstr = '0N';
-% latstr = '2S';
+% latstr = '1.5S';
 
-lonstr = '10W';
+% lonstr = '10W';
 % lonstr = '23W';
 % lonstr = '95W';
 % lonstr = '110W';
 % lonstr = '125W';
 % lonstr = '140W';
-% lonstr = '80.5E';
+lonstr = '80.5E';
 % lonstr = '67E';
 
 
@@ -51,6 +51,18 @@ if strcmp(latstr,'0N')
     latstrshort = '0';
 else
     latstrshort = latstr;
+end
+latstrnop = latstr;
+for ii = 1:length(latstr)
+    if strcmp(latstr(ii),'.')
+        latstrnop(ii) = '_';
+    end
+end
+latstrshortnop = latstrshort;
+for ii = 1:length(latstrshort)
+    if strcmp(latstrshort(ii),'.')
+        latstrshortnop(ii) = '_';
+    end
 end
 
 %% define save and figure directories
