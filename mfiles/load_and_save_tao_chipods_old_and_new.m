@@ -39,7 +39,7 @@ ynIC = 1;
 % the chipod deployments at each location:
 % e.g. ./chipod_info/chipod_info_at_0_140W.m
 
-run(['./chipod_info/chipod_info_at_' latstrshort '_' lonstrnop '.m']);
+run(['./chipod_info/chipod_info_at_' latstrshortnop '_' lonstrnop '.m']);
 
 
 %% make dummy variables (10 min averages at all depths)
